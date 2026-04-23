@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auth System</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      margin-top: 50px;
+    }
+    input, select {
+      margin: 5px;
+      padding: 10px;
+      width: 200px;
+    }
+    button {
+      padding: 10px 20px;
+      background: black;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage">
+  <h2>Login</h2>
+  <input id="loginEmail" placeholder="Email"><br>
+  <input id="loginPassword" type="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+  <p>New user? <a href="#" onclick="showPage('registerPage')">Register</a></p>
+</div>
+
+<!-- REGISTER -->
+<div id="registerPage" class="hidden">
+  <h2>Register</h2>
+  <input id="name" placeholder="Name"><br>
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+
+  <select id="role">
+    <option value="user">User</option>
+    <option value="admin">Admin</option>
+  </select><br>
+
+  <button onclick="register()">Register</button>
+  <p>Already have account? <a href="#" onclick="showPage('loginPage')">Login</a></p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboardPage" class="hidden">
+  <h2 id="roleTitle"></h2>
+  <div id="content"></div>
+  <button onclick="logout()">Logout</button>
+</div>
+
+<script>
+const API = "http://localhost:5000/api";
+
+// PAGE SWITCH
+function showPage(page) {
+  document.getElementById("loginPage").classList.add("hidden");
+  document.getElementById("registerPage").classList.add("hidden");
+  document.getElementById("dashboardPage").classList.add("hidden");
+
+  document.getElementById(page).classList.remove("hidden");
+}
+
+// REGISTER
+async function register() {
+  const name = document.getElementById("name").value;
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const role = document.getElementById("role").value;
+
+  const res = await fetch(API + "/auth/register", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ name, email, password, role })
+  });
+
+  if (res.ok) {
+    alert("Registered Successfully!");
+    showPage("loginPage");
+  } else {
+    alert("Error registering user");
+  }
+}
+
+// LOGIN
+async function login() {
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+
+  const res = await fetch(API + "/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ email, password })
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role", data.role);
+    loadDashboard();
+    showPage("dashboardPage");
+  } else {
+    alert(data.msg);
+  }
+}
+
+// LOAD DASHBOARD
+async function loadDashboard() {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+
+  if (!token) {
+    alert("Unauthorized");
+    showPage("loginPage");
+    return;
+  }
+
+  document.getElementById("roleTitle").innerText = "Dashboard (" + role + ")";
+
+  let endpoint = role === "admin" ? "/users/all" : "/users/profile";
+
+  const res = await fetch(API + endpoint, {
+    headers: { Authorization: token }
+  });
+
+  const data = await res.json();
+
+  const content = document.getElementById("content");
+
+  if (role === "admin") {
+    content.innerHTML = "<h3>All Users</h3>" +
+      data.map(u => `<p>${u.email}</p>`).join("");
+  } else {
+    content.innerHTML = `
+      <h3>My Profile</h3>
+      <p>${data.email}</p>
+    `;
+  }
+}
+
+// LOGOUT
+function logout() {
+  localStorage.clear();
+  showPage("loginPage");
+}
+
+// AUTO LOGIN CHECK
+window.onload = () => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    loadDashboard();
+    showPage("dashboardPage");
+  }
+};
+</script>
+
+</body>
+</html>
